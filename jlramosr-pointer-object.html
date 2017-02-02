@@ -1,0 +1,447 @@
+<link rel="import" href="../polymer/polymer.html">
+<link rel="import" href="../paper-spinner/paper-spinner-lite.html">
+<link rel="import" href="../iron-resizable-behavior/iron-resizable-behavior.html">
+
+<!--
+`jlramosr-pointer-object`
+
+  This element gives us the possibility to select and drag an object
+  through the browser using only pointer events.
+
+@demo demo/index.html 
+-->
+
+<dom-module id="jlramosr-pointer-object">
+
+  <template>
+
+    <style>
+      :host {
+        display: block;
+        position: relative;
+        /* 
+         * Disable predetermined touch events (user agent is new manager).
+         *
+         * It's used to allow pointer events.
+         * User agent is the new manager and directs all pointer events to JavaScript code.
+         */ 
+         touch-action: none;
+      }
+
+      #objectContainer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: var(--jlramosr-pointer-object-width, 50px);
+        height: var(--jlramosr-pointer-object-height, 50px);
+      }
+
+      #object {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0.5;
+        background-color: var(--google-yellow-500);
+        border-radius: 50%;
+        z-index: 1;
+        cursor: pointer;
+        border-radius: 50%;
+      }
+
+      #spinner {
+        --paper-spinner-stroke-width: 1px;
+        --paper-spinner-color: var(--google-green-500);
+        position: absolute;
+        top: -2px;
+        left: -2px;
+        width: calc(100% + 4px);
+        height: calc(100% + 4px);
+        z-index: 0;
+      }
+
+      :host([selected]) #object {
+        opacity: 1;
+        cursor: grabbing;
+        cursor: -moz-grabbing;
+        cursor: -webkit-grabbing;
+      }
+
+      :host([dragging]) #objectContainer {
+      }
+
+      :host([dragging]) #spinner {
+        cursor: grabbing;
+        cursor: -moz-grabbing;
+        cursor: -webkit-grabbing;
+      }
+    
+    </style>
+
+    <div id="objectContainer">
+      <div id="object"></div>
+      <paper-spinner-lite  id="spinner" active="[[_computeSpinnerActive(selected, dragging)]]"></paper-spinner-lite>
+    </div>
+
+    <template is="dom-if" if="[[!allowPointerEvents]]">
+      Oh no! Your browser does not accept pointer events!!
+    </template>
+
+  </template>
+</dom-module>
+
+<script>
+  (function() {
+    'use strict';
+
+    Polymer({
+
+      is: 'jlramosr-pointer-object',
+
+      properties: {
+
+        /**
+         * It indicates if browser accepts pointer events.
+         */ 
+        allowPointerEvents: {
+          type: Boolean,
+          readOnly: true,
+          value: false
+        },
+
+        /**
+         * Element width.
+         */ 
+        width: {
+          type: Number,
+          readOnly: true,
+        },
+
+        /**
+         * Element height.
+         */ 
+        height: {
+          type: Number,
+          readOnly: true,
+        },
+
+        /**
+         * It indicates if object is ready to move.
+         */ 
+        selected: {
+          type: Boolean,
+          reflectToAttribute: true,
+          value: false,
+        },
+
+        /**
+         * It indicates if object is being dragged.
+         */ 
+        dragging: {
+          type: Boolean,
+          reflectToAttribute: true,
+          readOnly: true,
+          value: false
+        },
+
+        /**
+         * Exact pointer position on the BROWSER x-asis when user press with the mouse or touch on object.
+         */ 
+        pointerDownX: {
+          type: Number,
+          readOnly: true,
+        },
+
+        /**
+         * Exact pointer position on the BROWSER y-asis when user press with the mouse or touch on object.
+         */ 
+        pointerDownY: {
+          type: Number,
+          readOnly: true,
+        },
+
+        /**
+         * Last pointer position on the BROWSER x-asis when user is dragging the object.
+         */ 
+        lastPointerDragX: {
+          type: Number,
+          readOnly: true
+        },
+
+        /**
+         * Last pointer position on the BROWSER y-asis when user is dragging the object.
+         */ 
+        lastPointerDragY: {
+          type: Number,
+          readOnly: true
+        },
+
+        /**
+         * Upper left corner position of the object on the ELEMENT x-asis.
+         */ 
+        cornerObjectX:  {
+          type: Number,
+          value: 0
+        },
+
+        /**
+         * Upper left corner position of the object on the ELEMENT y-asis.
+         */ 
+        cornerObjectY:  {
+          type: Number,
+          value: 0
+        },
+        
+        /**
+         * It indicates if object movement has animation.
+         */ 
+        hasAnimation: {
+          type: Boolean,
+          value: false
+        },
+
+      },
+
+      observers: [
+        '_elementSizeChanged(width, height)'
+      ],
+
+      behaviors: [
+        Polymer.IronResizableBehavior
+      ],
+
+      created() {
+        this._onIronResize = this._onIronResize.bind(this);
+        this._onKeyDown = this._onKeyDown.bind(this);
+      },
+
+      attached() {
+        if (window.PointerEvent) {
+          this._setAllowPointerEvents(true);
+          this._toggleListeners(true);
+          this._moveObject(this.cornerObjectX, this.cornerObjectY);
+        }
+      },
+
+      detached() {
+        this._toggleListeners(false);
+      },
+
+      _toggleListeners(enable) {
+        const m = enable ? 'addEventListener' : 'removeEventListener';
+        if(this.allowPointerEvents) {
+          this[m]('pointerdown', this._onPointerDown);
+          this[m]('pointerup', this._onPointerUp);
+          this[m]('pointermove', this._onPointerMove);
+          this[m]('pointerleave', this._onPointerLeave);
+        }
+        else {
+          this[m]('mousedown', this._onPointerDown);
+          this[m]('mouseup', this._onPointerUp);
+          this[m]('mousemove', this._onPointerMove);
+          this[m]('mouseleave', this._onPointerLeave);   
+        }
+        this[m]('iron-resize', this._onIronResize);
+        document.body[m]('keydown', this._onKeyDown);
+      },
+
+      _onIronResize(event) {
+        this._setWidth(event.target.clientWidth);
+        this._setHeight(event.target.clientHeight);
+      },
+
+      /**
+       * Fired when the user press the mouse over the object or touch the element.
+       *
+       * It updates pointer down position of the object and initialize the position of the drag.
+       */ 
+      _onPointerDown(event) {
+        if (event.target.id == 'object') {
+
+          this._setPointerDownX(event.clientX);
+          this._setPointerDownY(event.clientY);
+
+          if (this.selected) {
+            this._setDragging(true);
+            this._setLastPointerDragX(event.clientX);
+            this._setLastPointerDragY(event.clientY);
+          }
+        }
+      },
+
+      /**
+       * Fired when the user stop clicking or touching the element.
+       *
+       * It's a handler of object selected property. Always set dragging to false, updating the new corner of the object.
+       */ 
+      _onPointerUp(event) {
+        
+        this._setDragging(false);
+
+        if (event.target.id == 'object') {
+
+          const samePositionDown = (event.clientX ==  this.pointerDownX && event.clientY == this.pointerDownY);
+          if (samePositionDown) {
+            this.selected = !this.selected;
+          }
+        }
+      },
+
+      /**
+       * Fired when the user moves the mouse or finger or pen over the element.
+       *
+       * If the object is being dragged, update its position through the element.
+       */ 
+      _onPointerMove(event) {
+
+        console.log("asdsad", event);
+        
+        if (this.selected && this.dragging) {
+
+            const movementX = event.clientX - this.lastPointerDragX;
+            const movementY = event.clientY - this.lastPointerDragY;
+
+            this._setLastPointerDragX(event.clientX);
+            this._setLastPointerDragY(event.clientY);
+
+            const newCornerObjectX = this.cornerObjectX + movementX;
+            const newCornerObjectY = this.cornerObjectY + movementY;
+            
+            this._moveObject(newCornerObjectX, newCornerObjectY);
+
+        }
+      },
+
+      /**
+       * Fired when the user moves the mouse or finger or pen over the element.
+       *
+       * If the object is being dragged, update its position through the element.
+       */ 
+      _onPointerLeave(event) {
+        if (event.pointerType == 'mouse' && this.dragging) {
+          this._setDragging(false);
+        }
+      },
+
+
+
+      /**
+       * Fired when user press down a key.
+       */ 
+      _onKeyDown(event) {
+
+        const escKey = 27;
+        const arrowLeftKey = 37;
+        const arrowUpKey = 38;
+        const arrowRightKey = 39;
+        const arrowDownKey = 40;
+        const f5Key = 116;
+
+        if (this.selected) {
+
+          /* ESC */
+          if (event.keyCode === escKey) {
+            this.selected = false;
+            return;
+          }
+
+          /* F5 */
+          if (event.keyCode === f5Key) {
+            return;
+          }
+          
+          /* MOVEMENTS */
+          if (event.keyCode >= arrowLeftKey && event.keyCode <= arrowDownKey) {
+            event.preventDefault();
+            let newCornerObjectX = this.cornerObjectX;
+            let newCornerObjectY = this.cornerObjectY;
+            if (event.keyCode == arrowLeftKey) newCornerObjectX -= 10;
+            if (event.keyCode == arrowRightKey) newCornerObjectX += 10;
+            if (event.keyCode == arrowUpKey) newCornerObjectY -= 10;
+            if (event.keyCode == arrowDownKey) newCornerObjectY += 10;
+            this._moveObject(newCornerObjectX, newCornerObjectY);
+          }
+        }
+        
+      },
+
+      /**
+       * It moves the upper left corner position of the object to (x,y) with reference to ELEMENT initial position.
+       *
+       * @param{Number} Movement in pixels on ELEMENT x-axis from initial x-axis position.
+       * @param{Number} Movement in pixels on ELEMENT y-axis from initial y-axis position.
+       */ 
+      _moveObject(x, y) {
+
+        const objectContainer = this.$.objectContainer;
+
+        if (this._isObjectOut(x,y)) {
+
+          this.translate3d(this.cornerObjectX + 'px', this.cornerObjectY + 'px', 0, objectContainer);
+          this._setDragging(false);
+
+        } else {
+
+          if (this.hasAnimation) {
+
+            const animation = objectContainer.animate([
+              { 'transform': `translate(${this.cornerObjectX}px, ${this.cornerObjectY}px)` }, 
+              { 'transform': `translate(${x}px, ${y}px)` }
+            ], { 
+              duration: 800,
+              easing: 'cubic-bezier(0.23, 1, 0.32, 1)'
+            });
+            
+          }
+
+          this.translate3d(x + 'px', y + 'px', 0, objectContainer);
+          this.cornerObjectX = x;
+          this.cornerObjectY = y;
+
+        }
+      },
+
+      _isObjectOut(x, y) {
+        if (x < 0 || 
+            y < 0 || 
+            x + this.$.objectContainer.offsetWidth > this.width ||
+            y + this.$.objectContainer.offsetHeight > this.height)  {
+          return true;
+        }
+        return false;
+      },
+
+      /**
+       * It executes when object dimensions change.  
+       *
+       * It moves the object if its position is out when object dimensions change.
+       *
+       * @param{Number} New width of the element.
+       * @param{Number} New height of the element.
+       */ 
+      _elementSizeChanged(width, height) {
+
+        const bottomRightCornerObjectX = this.cornerObjectX + this.$.objectContainer.offsetWidth;
+        const bottomRightCornerObjectY = this.cornerObjectY + this.$.objectContainer.offsetHeight;
+
+        const isObjectOutX = bottomRightCornerObjectX > width;
+        const isObjectOutY = bottomRightCornerObjectY > height;
+
+        if (isObjectOutX) {
+          const movementX = bottomRightCornerObjectX - width;
+          this._moveObject(this.cornerObjectX - movementX, this.cornerObjectY);
+        }
+        if (isObjectOutY) {
+          const movementY = bottomRightCornerObjectY - height;
+          this._moveObject(this.cornerObjectX, this.cornerObjectY - movementY);
+        }
+      },
+
+      _computeSpinnerActive(selected, dragging) {
+        return selected && !dragging;
+      }
+
+  });
+}());
+</script>

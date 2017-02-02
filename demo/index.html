@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, minimum-scale=1, initial-scale=1, user-scalable=yes">
+
+    <title>jlramosr-pointer-object demo</title>
+
+    <script src="../../webcomponentsjs/webcomponents-lite.js"></script>
+
+    <link rel="import" href="../../iron-demo-helpers/demo-pages-shared-styles.html">
+    <link rel="import" href="../../iron-demo-helpers/demo-snippet.html">
+    <link rel="import" href="../jlramosr-pointer-object.html">
+
+    <style is="custom-style" include="demo-pages-shared-styles">
+      .jpo {
+        --jlramosr-pointer-object-width: 30px;
+        --jlramosr-pointer-object-height: 30px;
+        border: 1px solid #000;
+        width: 100%;
+        height: 50vh;
+        margin-bottom: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="vertical-section-container centered">
+      <h3>Basic jlramosr-pointer-object demo</h3>
+      <demo-snippet>
+        <template>
+
+          <jlramosr-pointer-object
+            class="jpo">
+          </jlramosr-pointer-object>
+
+          <jlramosr-pointer-object
+            has-animation
+            corner-object-x="20"
+            corner-object-y="30"
+            class="jpo">
+          </jlramosr-pointer-object>
+          
+        </template>
+      </demo-snippet>
+    </div>
+  </body>
+</html>
